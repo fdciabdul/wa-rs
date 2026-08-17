@@ -1,4 +1,5 @@
 use crate::db::session::{sqlite_blocking, DbPool};
+use std::collections::HashSet;
 
 pub async fn init_schema(pool: &DbPool) -> anyhow::Result<()> {
     match pool {
@@ -11,9 +12,9 @@ pub async fn init_schema(pool: &DbPool) -> anyhow::Result<()> {
 /// `CREATE TABLE IF NOT EXISTS` is a no-op on a table that already
 /// exists, so columns added to `messages` after a DB was first
 /// created (the media pointer + push-name join fields) need an
-/// explicit `ALTER TABLE ... ADD COLUMN IF NOT EXISTS` per column,
-/// each run independently so an already-present column never aborts
-/// the rest. Mirrors the tolerant migration list [`init_mysql`] runs.
+/// explicit `ALTER TABLE ... ADD COLUMN` for each missing column. SQLite
+/// doesn't support `ADD COLUMN IF NOT EXISTS`, so inspect `table_info`
+/// first instead of swallowing a syntax error on every startup.
 async fn init_sqlite(pool: &crate::db::session::SqlitePool) -> anyhow::Result<()> {
     use crate::db::sqlite_raw;
     sqlite_blocking(pool, |conn| {
@@ -158,16 +159,29 @@ async fn init_sqlite(pool: &crate::db::session::SqlitePool) -> anyhow::Result<()
              ); \
              CREATE INDEX IF NOT EXISTS idx_token_sessions_session ON token_sessions(session_id);",
         )?;
-        for sql in [
-            "ALTER TABLE messages ADD COLUMN IF NOT EXISTS media_key TEXT",
-            "ALTER TABLE messages ADD COLUMN IF NOT EXISTS file_sha256 TEXT",
-            "ALTER TABLE messages ADD COLUMN IF NOT EXISTS file_enc_sha256 TEXT",
-            "ALTER TABLE messages ADD COLUMN IF NOT EXISTS direct_path TEXT",
-            "ALTER TABLE messages ADD COLUMN IF NOT EXISTS file_length INTEGER",
-            "ALTER TABLE messages ADD COLUMN IF NOT EXISTS media_type TEXT",
-            "ALTER TABLE messages ADD COLUMN IF NOT EXISTS mimetype TEXT",
+        let existing_columns: HashSet<String> = sqlite_raw::query(
+            conn,
+            "PRAGMA table_info(messages)",
+            &[],
+            |row| row.get_string(1).unwrap_or_default(),
+        )?
+        .into_iter()
+        .collect();
+        for (column, definition) in [
+            ("media_key", "TEXT"),
+            ("file_sha256", "TEXT"),
+            ("file_enc_sha256", "TEXT"),
+            ("direct_path", "TEXT"),
+            ("file_length", "INTEGER"),
+            ("media_type", "TEXT"),
+            ("mimetype", "TEXT"),
         ] {
-            let _ = sqlite_raw::exec_batch(conn, sql);
+            if !existing_columns.contains(column) {
+                sqlite_raw::exec_batch(
+                    conn,
+                    &format!("ALTER TABLE messages ADD COLUMN {column} {definition}"),
+                )?;
+            }
         }
         if let Err(e) = sqlite_raw::exec_batch(
             conn,
