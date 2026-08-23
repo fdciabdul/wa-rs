@@ -4,6 +4,16 @@ All notable changes to **waxum** will be documented in this file.
 
 ## [Unreleased]
 
+### Added — `GET /sessions/{id}/contacts/{jid}/lid`
+
+On-demand LID↔phone-number resolution, backed by `Client::get_lid_pn_entry`
+— the same lookup already used internally to populate `from_phone` on
+incoming-message webhooks (`resolve_sender_phone`), now exposed directly so
+a caller holding a bare `@lid` sender JID (e.g. from stored message history)
+can resolve it without waiting for a fresh webhook. Answers from
+whatsapp-rust's own cache/DB mapping, no live network round trip; 404 if the
+pair hasn't been learned yet, 503 if the session has no connected client.
+
 ### Changed
 
 Bumped the vendored `whatsapp-rust` (and `wacore`/`wacore-binary`/

@@ -170,6 +170,7 @@ use state::AppState;
         handlers::contacts::get_profile_picture,
         handlers::contacts::get_user_info,
         handlers::contacts::list_contacts,
+        handlers::contacts::resolve_lid,
 
         handlers::groups::list_groups,
         handlers::groups::get_group,
@@ -365,6 +366,7 @@ use state::AppState;
             models::contacts::UserInfo,
             models::contacts::StoredContact,
             models::contacts::StoredContactListResponse,
+            models::contacts::LidPnEntryResponse,
 
             models::groups::GroupListResponse,
             models::groups::GroupInfo,

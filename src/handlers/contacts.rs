@@ -316,3 +316,47 @@ async fn do_get_user_info(
     })
     .await
 }
+
+/// Resolve a LID (`@lid`) JID to its phone number, or a phone-number JID to
+/// its LID, via `Client::get_lid_pn_entry`. Answers from the in-memory
+/// cache/DB mapping learned from usync, peer messages, pairing, etc. — no
+/// live network round-trip, so this can return `None` for a pair the
+/// session hasn't observed yet even while connected.
+#[utoipa::path(
+    get,
+    security(("bearer_auth" = [])),
+    path = "/api/v1/sessions/{session_id}/contacts/{jid}/lid",
+    tag = "contacts",
+    params(
+        ("session_id" = String, Path, description = "Session ID"),
+        ("jid" = String, Path, description = "A `@lid` JID or a phone-number JID (with or without `@s.whatsapp.net`)")
+    ),
+    responses(
+        (status = 200, description = "Mapping found", body = LidPnEntryResponse),
+        (status = 404, description = "No mapping known for this JID"),
+        (status = 503, description = "Session not connected")
+    )
+)]
+pub async fn resolve_lid(
+    State(state): State<AppState>,
+    Path((session_id, jid)): Path<(String, String)>,
+) -> Result<Json<LidPnEntryResponse>, ApiError> {
+    let client = crate::handlers::messages::get_client(&state, &session_id)?;
+    let target = crate::handlers::messages::parse_jid(&jid)?;
+
+    let entry = AssertSend(async move {
+        client
+            .get_lid_pn_entry(&target)
+            .await
+            .map_err(|e| ApiError::Internal(e.to_string()))
+    })
+    .await?
+    .ok_or_else(|| ApiError::ContactNotFound(jid.clone()))?;
+
+    Ok(Json(LidPnEntryResponse {
+        lid: entry.lid.to_string(),
+        phone_number: entry.phone_number.to_string(),
+        created_at: entry.created_at,
+        learning_source: entry.learning_source.to_string(),
+    }))
+}
