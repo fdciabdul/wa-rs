@@ -119,6 +119,7 @@ use state::AppState;
         handlers::sessions::get_session_status,
         handlers::sessions::get_qr_code,
         handlers::sessions::connect_session,
+        handlers::sessions::connect_and_wait,
         handlers::sessions::pair_session,
         handlers::sessions::disconnect_session,
         handlers::sessions::export_session,
@@ -203,6 +204,7 @@ use state::AppState;
         handlers::calls::play_call,
         handlers::calls::accept_call,
         handlers::calls::terminate_call,
+        handlers::calls::set_call_video_orientation,
         handlers::calls::transcribe_call,
 
         handlers::status::send_status_reaction,
@@ -403,6 +405,7 @@ use state::AppState;
             models::calls::AcceptCallRequest,
             models::calls::TerminateCallRequest,
             models::calls::TranscriptResponse,
+            models::calls::SetVideoOrientationRequest,
 
             models::status::StatusReactionRequest,
 

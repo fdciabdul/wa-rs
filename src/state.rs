@@ -483,7 +483,6 @@ impl SessionState {
         let _ = self.event_tx.send(event);
     }
 
-    #[allow(dead_code)]
     pub fn subscribe_events(&self) -> broadcast::Receiver<String> {
         self.event_tx.subscribe()
     }

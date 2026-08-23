@@ -600,6 +600,51 @@ pub async fn terminate_call(
 #[utoipa::path(
     post,
     security(("bearer_auth" = [])),
+    path = "/api/v1/sessions/{session_id}/calls/video-orientation",
+    tag = "calls",
+    params(
+        ("session_id" = String, Path, description = "Session ID")
+    ),
+    request_body = crate::models::calls::SetVideoOrientationRequest,
+    responses(
+        (status = 200, description = "Orientation announced to the peer", body = SuccessResponse),
+        (status = 400, description = "Empty call_id, orientation out of 0-3 range, or call not active"),
+        (status = 404, description = "Session not found"),
+        (status = 503, description = "Not connected")
+    )
+)]
+pub async fn set_call_video_orientation(
+    State(state): State<AppState>,
+    Path(session_id): Path<String>,
+    Json(request): Json<crate::models::calls::SetVideoOrientationRequest>,
+) -> Result<Json<SuccessResponse>, ApiError> {
+    if request.call_id.is_empty() {
+        return Err(ApiError::BadRequest("call_id is empty".to_string()));
+    }
+    // Not strictly needed to reach the handle (active_calls is keyed by
+    // call_id alone), but keeps this endpoint's auth/connected-session
+    // requirements consistent with every other /calls/* mutation.
+    let _client = get_client(&state, &session_id)?;
+
+    let handle = state
+        .active_calls()
+        .get(&request.call_id)
+        .map(|e| e.value().clone())
+        .ok_or_else(|| ApiError::BadRequest("call_id not found in registry".to_string()))?;
+
+    handle
+        .set_video_orientation(request.orientation)
+        .await
+        .map_err(|e| ApiError::BadRequest(e.to_string()))?;
+
+    Ok(Json(SuccessResponse::with_message(
+        "Video orientation updated",
+    )))
+}
+
+#[utoipa::path(
+    post,
+    security(("bearer_auth" = [])),
     path = "/api/v1/sessions/{session_id}/calls/tts",
     tag = "calls",
     params(
