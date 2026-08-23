@@ -2,7 +2,7 @@
 
 All notable changes to **waxum** will be documented in this file.
 
-## [Unreleased]
+## [0.12.2] - 2026-08-23
 
 ### Changed — vendored whatsapp-rust bumped to `1489b7d` (upstream `0.7.0`)
 
