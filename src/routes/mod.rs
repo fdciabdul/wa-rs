@@ -95,6 +95,10 @@ fn session_routes() -> Router<AppState> {
             "/{session_id}/connect",
             post(handlers::sessions::connect_session),
         )
+        .route(
+            "/{session_id}/connect/wait",
+            get(handlers::sessions::connect_and_wait),
+        )
         .route("/{session_id}/pair", post(handlers::sessions::pair_session))
         .route(
             "/{session_id}/disconnect",
@@ -294,6 +298,10 @@ fn session_routes() -> Router<AppState> {
             get(handlers::contacts::get_profile_picture),
         )
         .route(
+            "/{session_id}/contacts/{jid}/lid",
+            get(handlers::contacts::resolve_lid),
+        )
+        .route(
             "/{session_id}/contacts/users",
             post(handlers::contacts::get_user_info),
         )
@@ -385,6 +393,10 @@ fn session_routes() -> Router<AppState> {
         .route(
             "/{session_id}/calls/terminate",
             post(handlers::calls::terminate_call),
+        )
+        .route(
+            "/{session_id}/calls/video-orientation",
+            post(handlers::calls::set_call_video_orientation),
         )
         .route(
             "/{session_id}/status/react",

@@ -175,3 +175,14 @@ pub struct VoiceEntry {
 pub struct TranscriptResponse {
     pub text: String,
 }
+
+/// Body for `POST /api/v1/sessions/{session_id}/calls/video-orientation`.
+#[derive(Debug, Clone, Deserialize, ToSchema)]
+pub struct SetVideoOrientationRequest {
+    pub call_id: String,
+    /// Camera rotation to announce to the peer, as quarter turns clockwise
+    /// (0-3). Applied to every `<video>` this call sends from now on; a
+    /// call that isn't sending video yet has the value applied once it
+    /// starts.
+    pub orientation: u8,
+}

@@ -119,6 +119,7 @@ use state::AppState;
         handlers::sessions::get_session_status,
         handlers::sessions::get_qr_code,
         handlers::sessions::connect_session,
+        handlers::sessions::connect_and_wait,
         handlers::sessions::pair_session,
         handlers::sessions::disconnect_session,
         handlers::sessions::export_session,
@@ -170,6 +171,7 @@ use state::AppState;
         handlers::contacts::get_profile_picture,
         handlers::contacts::get_user_info,
         handlers::contacts::list_contacts,
+        handlers::contacts::resolve_lid,
 
         handlers::groups::list_groups,
         handlers::groups::get_group,
@@ -202,6 +204,7 @@ use state::AppState;
         handlers::calls::play_call,
         handlers::calls::accept_call,
         handlers::calls::terminate_call,
+        handlers::calls::set_call_video_orientation,
         handlers::calls::transcribe_call,
 
         handlers::status::send_status_reaction,
@@ -365,6 +368,7 @@ use state::AppState;
             models::contacts::UserInfo,
             models::contacts::StoredContact,
             models::contacts::StoredContactListResponse,
+            models::contacts::LidPnEntryResponse,
 
             models::groups::GroupListResponse,
             models::groups::GroupInfo,
@@ -401,6 +405,7 @@ use state::AppState;
             models::calls::AcceptCallRequest,
             models::calls::TerminateCallRequest,
             models::calls::TranscriptResponse,
+            models::calls::SetVideoOrientationRequest,
 
             models::status::StatusReactionRequest,
 

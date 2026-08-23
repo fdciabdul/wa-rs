@@ -4,6 +4,58 @@ All notable changes to **waxum** will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — vendored whatsapp-rust bumped to `1489b7d` (upstream `0.7.0`)
+
+47 upstream commits since the last bump. Notable: the voip relay media
+stack moved to the sans-io `rtc-*` crates (transparent — nothing in
+waxum's calls code touched the old `webrtc-*` types directly); the
+peer `push_name` event (`Event::PushNameUpdate`) was formally retired
+upstream ("nothing constructs this and nothing dispatches the variant
+it fills" — dead code even before this bump) and its 3 call sites here
+removed, with no behavior change since it never actually fired; and
+the incoming-message envelope `type` field is now a typed
+`StanzaMessageType` instead of a bare string, which — because it
+derives the same `Serialize` waxum's webhook payload already relies
+on — keeps working with no code change on this side.
+
+New capabilities wired in from the bump:
+
+- **`POST /sessions/{id}/calls/video-orientation`** — announce a quarter-turn
+  camera rotation to the peer mid-call, via the new
+  `CallHandle::set_video_orientation`.
+- **`reachability` field on `GET /sessions/{id}/status`** — the client's own
+  `reachability()` verdict (`reachable` / `reconnecting` / `paused` /
+  `unsupervised` / `finished`), finer-grained than the existing
+  `status`/`socket_alive` pair. `null` when there's no live client at all.
+- **`waxum_session_devices_unkeyed_total{session_id,reason}`** on `/metrics`
+  — per-session, per-reason gauge (`no_bundle`/`session_setup`/`rejected`/
+  `fetch_failed`/`encrypt`) read from the client's own send-observability
+  counters, so a silently-degraded send (message "sent" but never reached
+  some devices) is now visible instead of invisible until a user complains.
+
+### Added — `GET /sessions/{id}/connect/wait`
+
+One-shot pairing flow as a single SSE stream: creates the session if it
+doesn't exist, connects it if it isn't already connecting/connected, and
+streams `qr_code` → `pair_code` → `connected` → `ready` (or `error` /
+`timeout`) — so a caller doesn't have to orchestrate `POST /sessions` +
+poll `/qr` + poll `/status` + watch webhooks by hand. `ready` fires
+immediately if the session was already logged in when the stream opened;
+otherwise after `connected` if history sync is disabled for the session,
+or after the upstream `offline_sync_completed` event otherwise. Built on
+the per-session `broadcast::Sender<String>` that already mirrored every
+webhook payload (`SessionState::event_tx`) but had no subscriber until now.
+
+### Added — `GET /sessions/{id}/contacts/{jid}/lid`
+
+On-demand LID↔phone-number resolution, backed by `Client::get_lid_pn_entry`
+— the same lookup already used internally to populate `from_phone` on
+incoming-message webhooks (`resolve_sender_phone`), now exposed directly so
+a caller holding a bare `@lid` sender JID (e.g. from stored message history)
+can resolve it without waiting for a fresh webhook. Answers from
+whatsapp-rust's own cache/DB mapping, no live network round trip; 404 if the
+pair hasn't been learned yet, 503 if the session has no connected client.
+
 ### Changed
 
 Bumped the vendored `whatsapp-rust` (and `wacore`/`wacore-binary`/

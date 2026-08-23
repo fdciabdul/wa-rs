@@ -227,6 +227,12 @@ pub struct SessionStatusResponse {
     pub push_name: Option<String>,
     /// Pair flow telemetry (always present, fields may be null)
     pub pair: PairStatus,
+    /// Finer-grained connection state from the underlying client's own
+    /// `reachability()`, distinct from `status`/`socket_alive`: one of
+    /// `reachable`, `reconnecting`, `paused`, `unsupervised` or `finished`.
+    /// `null` when there is no live client in this process at all (the
+    /// coarse `status`/`is_logged_in` above already cover that case).
+    pub reachability: Option<String>,
 }
 
 /// Device information

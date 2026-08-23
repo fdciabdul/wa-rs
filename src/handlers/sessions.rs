@@ -1,10 +1,12 @@
 use std::time::Duration;
 
 use axum::{
-    extract::{Multipart, Path, State},
+    extract::{Multipart, Path, Query, State},
+    response::sse::{Event as SseEvent, KeepAlive, Sse},
     response::Response as AxumResponse,
     Json,
 };
+use futures::stream::Stream;
 use uuid::Uuid;
 
 use crate::device_props::ResolvedDeviceProps;
@@ -268,7 +270,7 @@ pub async fn get_session_status(
         .map_err(|e| ApiError::Internal(e.to_string()))?
         .ok_or_else(|| ApiError::SessionNotFound(session_id.clone()))?;
 
-    let (status, is_logged_in, socket_alive, paused, pair) =
+    let (status, is_logged_in, socket_alive, paused, pair, reachability) =
         if let Some(runtime) = state.get_session(&session_id) {
             let ps = runtime.get_pair_state();
             let pair = crate::models::sessions::PairStatus {
@@ -279,9 +281,18 @@ pub async fn get_session_status(
                 attempts: ps.attempts,
             };
             let socket_alive = runtime.socket_alive();
-            let paused = runtime.get_client().map(|c| c.is_paused()).unwrap_or(false);
+            let client = runtime.get_client();
+            let paused = client.as_ref().map(|c| c.is_paused()).unwrap_or(false);
+            let reachability = client.as_ref().map(|c| reachability_str(c.reachability()));
             if runtime.is_alive() {
-                (SessionStatus::LoggedIn, true, socket_alive, paused, pair)
+                (
+                    SessionStatus::LoggedIn,
+                    true,
+                    socket_alive,
+                    paused,
+                    pair,
+                    reachability,
+                )
             } else {
                 let s = runtime.get_status();
                 let (status, is_logged_in) = if s == SessionStatus::LoggedIn {
@@ -289,7 +300,14 @@ pub async fn get_session_status(
                 } else {
                     (s, false)
                 };
-                (status, is_logged_in, socket_alive, paused, pair)
+                (
+                    status,
+                    is_logged_in,
+                    socket_alive,
+                    paused,
+                    pair,
+                    reachability,
+                )
             }
         } else {
             (
@@ -298,6 +316,7 @@ pub async fn get_session_status(
                 false,
                 false,
                 crate::models::sessions::PairStatus::default(),
+                None,
             )
         };
 
@@ -309,7 +328,26 @@ pub async fn get_session_status(
         phone_number: session.phone_number,
         push_name: session.push_name,
         pair,
+        reachability,
     }))
+}
+
+/// `whatsapp_rust::Reachability` carries no `Serialize`/`Display` of its own
+/// (see its upstream doc: reported by `Client::reachability`, waited out by
+/// `Client::wait_until_reachable`) -- own the string mapping here so a
+/// renamed/added upstream variant is a compile error, not a silently missing
+/// value on the wire.
+fn reachability_str(r: whatsapp_rust::Reachability) -> String {
+    use whatsapp_rust::Reachability;
+    match r {
+        Reachability::Reachable => "reachable",
+        Reachability::Reconnecting => "reconnecting",
+        Reachability::Paused => "paused",
+        Reachability::Unsupervised => "unsupervised",
+        Reachability::Finished => "finished",
+        _ => "unknown",
+    }
+    .to_string()
 }
 
 #[utoipa::path(
@@ -438,6 +476,241 @@ pub async fn connect_session(
     });
 
     Ok(Json(SuccessResponse::with_message("Connection initiated")))
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub struct ConnectWaitQuery {
+    /// Session display name, only applied if the session doesn't exist yet.
+    pub name: Option<String>,
+    /// Device OS override, only applied if the session doesn't exist yet.
+    pub os: Option<String>,
+    /// Device platform override, only applied if the session doesn't exist yet.
+    pub platform: Option<String>,
+    /// Device version override, only applied if the session doesn't exist yet.
+    pub version: Option<String>,
+    /// Give up and close the stream after this many seconds with no
+    /// terminal event. Clamped to 5-600, default 180.
+    pub timeout_seconds: Option<u64>,
+}
+
+/// Creates the session if it doesn't exist, connects it if it isn't already
+/// connecting/connected, and streams the pairing flow end-to-end as
+/// server-sent events so a caller doesn't have to orchestrate
+/// `POST /sessions` + poll `/qr` + poll `/status` + watch webhooks by hand.
+///
+/// Emitted event names (each `data:` is the same JSON payload shape as the
+/// matching webhook, or a small inline object for the synthetic ones):
+/// - `qr_code` / `pair_code` -- forwarded verbatim as WhatsApp rotates them.
+/// - `connected` -- forwarded verbatim once paired.
+/// - `ready` -- synthetic terminal event. Fires immediately if the session
+///   was already logged in when the stream opened; otherwise fires after
+///   `connected` if history sync is disabled for this session
+///   (`skip_history_sync`), or after the upstream `offline_sync_completed`
+///   event otherwise.
+/// - `error` -- synthetic terminal event on `logged_out`.
+/// - `timeout` -- synthetic terminal event if no terminal state is reached
+///   before `timeout_seconds`.
+///
+/// The stream closes itself after any terminal event.
+#[utoipa::path(
+    get,
+    path = "/api/v1/sessions/{session_id}/connect/wait",
+    tag = "sessions",
+    security(("bearer_auth" = [])),
+    params(
+        ("session_id" = String, Path, description = "Session ID (created if it doesn't already exist)"),
+        ("name" = Option<String>, Query, description = "Session display name, only applied on first creation"),
+        ("os" = Option<String>, Query, description = "Device OS override, only applied on first creation"),
+        ("platform" = Option<String>, Query, description = "Device platform override, only applied on first creation"),
+        ("version" = Option<String>, Query, description = "Device version override, only applied on first creation"),
+        ("timeout_seconds" = Option<u64>, Query, description = "Give up after this many seconds with no terminal event (5-600, default 180)")
+    ),
+    responses(
+        (status = 200, description = "text/event-stream of the pairing flow: qr_code/pair_code -> connected -> ready, or error/timeout")
+    )
+)]
+pub async fn connect_and_wait(
+    State(state): State<AppState>,
+    Path(session_id): Path<String>,
+    Query(query): Query<ConnectWaitQuery>,
+) -> Result<Sse<impl Stream<Item = Result<SseEvent, std::convert::Infallible>>>, ApiError> {
+    let timeout = Duration::from_secs(query.timeout_seconds.unwrap_or(180).clamp(5, 600));
+    let runtime = ensure_connecting_for_wait(&state, &session_id, &query).await?;
+
+    let (tx, rx) = tokio::sync::mpsc::channel::<Result<SseEvent, std::convert::Infallible>>(32);
+
+    if runtime.is_alive() && runtime.get_status() == SessionStatus::LoggedIn {
+        tokio::spawn(async move {
+            let _ = tx
+                .send(Ok(SseEvent::default()
+                    .event("ready")
+                    .data(r#"{"already_connected":true}"#)))
+                .await;
+        });
+        let stream = tokio_stream::wrappers::ReceiverStream::new(rx);
+        return Ok(Sse::new(stream).keep_alive(KeepAlive::default()));
+    }
+
+    let mut events_rx = runtime.subscribe_events();
+    let skip_sync = runtime.skip_history_sync();
+
+    tokio::spawn(async move {
+        let deadline = tokio::time::sleep(timeout);
+        tokio::pin!(deadline);
+        loop {
+            tokio::select! {
+                _ = &mut deadline => {
+                    let _ = tx
+                        .send(Ok(SseEvent::default().event("timeout").data("{}")))
+                        .await;
+                    return;
+                }
+                recv = events_rx.recv() => {
+                    let payload = match recv {
+                        Ok(p) => p,
+                        Err(tokio::sync::broadcast::error::RecvError::Closed) => return,
+                        Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => continue,
+                    };
+                    let Ok(v) = serde_json::from_str::<serde_json::Value>(&payload) else {
+                        continue;
+                    };
+                    let event_name = v.get("event").and_then(|e| e.as_str()).unwrap_or("");
+                    match event_name {
+                        #[allow(clippy::collapsible_match)]
+                        "qr_code" | "pair_code" => {
+                            if tx
+                                .send(Ok(SseEvent::default().event(event_name).data(payload)))
+                                .await
+                                .is_err()
+                            {
+                                return;
+                            }
+                        }
+                        "connected" => {
+                            if tx
+                                .send(Ok(SseEvent::default().event("connected").data(payload.clone())))
+                                .await
+                                .is_err()
+                            {
+                                return;
+                            }
+                            if skip_sync {
+                                let _ = tx
+                                    .send(Ok(SseEvent::default().event("ready").data(payload)))
+                                    .await;
+                                return;
+                            }
+                        }
+                        "offline_sync_completed" => {
+                            let _ = tx
+                                .send(Ok(SseEvent::default().event("ready").data(payload)))
+                                .await;
+                            return;
+                        }
+                        "logged_out" => {
+                            let _ = tx
+                                .send(Ok(SseEvent::default().event("error").data(payload)))
+                                .await;
+                            return;
+                        }
+                        _ => {}
+                    }
+                }
+            }
+        }
+    });
+
+    let stream = tokio_stream::wrappers::ReceiverStream::new(rx);
+    Ok(Sse::new(stream).keep_alive(
+        KeepAlive::new()
+            .interval(Duration::from_secs(15))
+            .text("keep-alive"),
+    ))
+}
+
+/// Idempotent connect trigger shared by [`connect_and_wait`]: creates the
+/// session row if it doesn't exist yet, then kicks off a connect unless one
+/// is already in flight or the session is already logged in (in which case
+/// the caller short-circuits without touching the client at all).
+async fn ensure_connecting_for_wait(
+    state: &AppState,
+    session_id: &str,
+    query: &ConnectWaitQuery,
+) -> Result<std::sync::Arc<crate::state::SessionState>, ApiError> {
+    let existing = state
+        .session_manager()
+        .get_session(session_id)
+        .await
+        .map_err(|e| ApiError::Internal(e.to_string()))?;
+
+    let storage_path = if existing.is_some() {
+        state
+            .session_manager()
+            .get_storage_path(session_id)
+            .await
+            .map_err(|e| ApiError::Internal(e.to_string()))?
+            .unwrap_or_else(|| format!("{}/{}", state.base_storage_path(), session_id))
+    } else {
+        let storage_path = format!("{}/{}", state.base_storage_path(), session_id);
+        tokio::fs::create_dir_all(&storage_path)
+            .await
+            .map_err(|e| ApiError::Internal(e.to_string()))?;
+        state
+            .session_manager()
+            .create_session(session_id, query.name.as_deref(), &storage_path)
+            .await
+            .map_err(|e| ApiError::Internal(e.to_string()))?;
+        storage_path
+    };
+
+    let runtime = state.get_or_create_session(session_id, &storage_path);
+
+    if runtime.is_alive() && runtime.get_status() == SessionStatus::LoggedIn {
+        return Ok(runtime);
+    }
+
+    let s = runtime.get_status();
+    if matches!(
+        s,
+        SessionStatus::Connecting | SessionStatus::WaitingForQr | SessionStatus::WaitingForPairCode
+    ) {
+        return Ok(runtime);
+    }
+
+    if let Some(old_client) = runtime.get_client() {
+        old_client.disconnect().await;
+    }
+    runtime.set_client(None);
+    runtime.set_status(SessionStatus::Connecting);
+    runtime.clear_reconnecting();
+    runtime.clear_lock_cooldown();
+
+    let device_override =
+        if query.os.is_some() || query.platform.is_some() || query.version.is_some() {
+            Some(crate::device_props::resolve_with_override(
+                query.os.as_deref(),
+                query.platform.as_deref(),
+                query.version.as_deref(),
+            ))
+        } else {
+            None
+        };
+
+    let state_clone = state.clone();
+    let session_id_clone = session_id.to_string();
+    tokio::spawn(async move {
+        if let Err(e) = connect_client(&state_clone, &session_id_clone, device_override).await {
+            tracing::error!("Session {} connection failed: {}", session_id_clone, e);
+            let msg = e.to_string();
+            if let Some(runtime) = state_clone.get_session(&session_id_clone) {
+                runtime.set_status(SessionStatus::Disconnected);
+                runtime.set_client(None);
+                runtime.update_pair_state(|ps| ps.last_error = Some(msg));
+            }
+        }
+    });
+
+    Ok(runtime)
 }
 
 #[utoipa::path(
@@ -1572,7 +1845,6 @@ fn get_event_type(event: &wacore::types::events::Event) -> String {
         Event::IncomingCall(_) => "incoming_call".to_string(),
         Event::PictureUpdate(_) => "picture_update".to_string(),
         Event::UserAboutUpdate(_) => "user_about_update".to_string(),
-        Event::PushNameUpdate(_) => "push_name_update".to_string(),
         Event::SelfPushNameUpdated(_) => "push_name_update".to_string(),
         Event::ContactUpdate(_) => "contact_update".to_string(),
         Event::DeviceListUpdate(_) => "device_list_update".to_string(),
@@ -1951,7 +2223,7 @@ async fn persist_contact_event(
     let mut lid_str = None::<String>;
     let mut full_name = None::<String>;
     let mut first_name = None::<String>;
-    let mut push_name = None::<String>;
+    let push_name = None::<String>;
     let business_name = None::<String>;
     let source: &str;
 
@@ -1981,16 +2253,6 @@ async fn persist_contact_event(
             } else {
                 "appstate"
             };
-        }
-        Event::PushNameUpdate(u) => {
-            jid_str = u.jid.to_string();
-            if !u.new_push_name.is_empty() {
-                push_name = Some(u.new_push_name.clone());
-            }
-            if u.jid.server == wacore_binary::jid::SERVER_JID {
-                phone_str = Some(u.jid.user.to_string());
-            }
-            source = "push_name";
         }
         Event::ContactUpdated(u) => {
             jid_str = u.jid.to_string();
@@ -2083,13 +2345,6 @@ fn event_to_json(event: &wacore::types::events::Event, session_id: &str) -> serd
                 "jid": update.jid.to_string(),
                 "status": update.status,
                 "timestamp": update.timestamp.timestamp(),
-            })
-        }
-        Event::PushNameUpdate(update) => {
-            serde_json::json!({
-                "jid": update.jid.to_string(),
-                "old_push_name": update.old_push_name,
-                "new_push_name": update.new_push_name,
             })
         }
         Event::SelfPushNameUpdated(update) => {

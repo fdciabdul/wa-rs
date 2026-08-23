@@ -22,6 +22,16 @@
 //! - `waxum_session_socket_drops_total` — `Event::Disconnected` seen.
 //! - `waxum_session_reconnects_total` — `Event::Connected` that closed
 //!   an unplanned reconnect window (initial connects don't count).
+//!
+//! - `waxum_session_devices_unkeyed_total{session_id,reason}` — cumulative
+//!   count, read straight from the client's own `StatsSnapshot` each
+//!   scrape (so it's a gauge, not an incremented counter: whatsapp-rust
+//!   owns the running total, waxum only republishes it), of devices a
+//!   send gave up keying for. `reason` is one of `no_bundle`,
+//!   `session_setup`, `rejected`, `fetch_failed`, `encrypt` — see
+//!   whatsapp-rust's `agent_docs/observability.md` for what separates
+//!   them. A send drops the device and keeps going when this fires, so
+//!   this answers "how often", not "did the message fail".
 
 use axum::{extract::State, http::StatusCode, response::IntoResponse};
 use prometheus::{Encoder, IntCounterVec, IntGauge, IntGaugeVec, Opts, Registry, TextEncoder};
@@ -38,6 +48,7 @@ static WEBHOOK_CIRCUITS_OPEN: OnceLock<IntGauge> = OnceLock::new();
 static SESSION_SOCKET_ALIVE: OnceLock<IntGaugeVec> = OnceLock::new();
 static SESSION_DROPS: OnceLock<IntCounterVec> = OnceLock::new();
 static SESSION_RECONNECTS: OnceLock<IntCounterVec> = OnceLock::new();
+static SESSION_DEVICES_UNKEYED: OnceLock<IntGaugeVec> = OnceLock::new();
 
 /// Session ids we've already exported per-session series for, so the
 /// scrape loop can prune labels for sessions that were deleted —
@@ -101,6 +112,14 @@ fn registry() -> &'static Registry {
             &["session_id"],
         )
         .unwrap();
+        let session_devices_unkeyed = IntGaugeVec::new(
+            Opts::new(
+                "waxum_session_devices_unkeyed_total",
+                "Per-session, per-reason count of devices a send gave up keying for (from the client's own running total)",
+            ),
+            &["session_id", "reason"],
+        )
+        .unwrap();
         r.register(Box::new(sessions_total.clone())).unwrap();
         r.register(Box::new(sessions_live.clone())).unwrap();
         r.register(Box::new(process_threads.clone())).unwrap();
@@ -109,6 +128,8 @@ fn registry() -> &'static Registry {
         r.register(Box::new(session_socket_alive.clone())).unwrap();
         r.register(Box::new(session_drops.clone())).unwrap();
         r.register(Box::new(session_reconnects.clone())).unwrap();
+        r.register(Box::new(session_devices_unkeyed.clone()))
+            .unwrap();
         SESSIONS_TOTAL.set(sessions_total).ok();
         SESSIONS_LIVE.set(sessions_live).ok();
         PROCESS_THREADS.set(process_threads).ok();
@@ -117,6 +138,7 @@ fn registry() -> &'static Registry {
         SESSION_SOCKET_ALIVE.set(session_socket_alive).ok();
         SESSION_DROPS.set(session_drops).ok();
         SESSION_RECONNECTS.set(session_reconnects).ok();
+        SESSION_DEVICES_UNKEYED.set(session_devices_unkeyed).ok();
         r
     })
 }
@@ -160,6 +182,7 @@ pub async fn metrics_handler(State(state): State<AppState>) -> impl IntoResponse
     let mut total = 0i64;
     let mut live = 0i64;
     let socket_alive_vec = SESSION_SOCKET_ALIVE.get().unwrap();
+    let devices_unkeyed_vec = SESSION_DEVICES_UNKEYED.get().unwrap();
     let mut current_ids = std::collections::HashSet::new();
     for (session_id, s) in state.session_iter_with_ids() {
         total += 1;
@@ -169,6 +192,20 @@ pub async fn metrics_handler(State(state): State<AppState>) -> impl IntoResponse
         socket_alive_vec
             .with_label_values(&[session_id.as_str()])
             .set(if s.socket_alive() { 1 } else { 0 });
+        if let Some(client) = s.get_client() {
+            let stats = client.stats();
+            for (reason, value) in [
+                ("no_bundle", stats.devices_unkeyed_no_bundle),
+                ("session_setup", stats.devices_unkeyed_session_setup),
+                ("rejected", stats.devices_unkeyed_rejected),
+                ("fetch_failed", stats.devices_unkeyed_fetch_failed),
+                ("encrypt", stats.devices_unkeyed_encrypt),
+            ] {
+                devices_unkeyed_vec
+                    .with_label_values(&[session_id.as_str(), reason])
+                    .set(value as i64);
+            }
+        }
         current_ids.insert(session_id);
     }
     SESSIONS_TOTAL.get().unwrap().set(total);
@@ -182,6 +219,15 @@ pub async fn metrics_handler(State(state): State<AppState>) -> impl IntoResponse
         }
         if let Some(c) = SESSION_RECONNECTS.get() {
             let _ = c.remove_label_values(&[stale.as_str()]);
+        }
+        for reason in [
+            "no_bundle",
+            "session_setup",
+            "rejected",
+            "fetch_failed",
+            "encrypt",
+        ] {
+            let _ = devices_unkeyed_vec.remove_label_values(&[stale.as_str(), reason]);
         }
     }
     *seen = current_ids;

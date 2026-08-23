@@ -98,3 +98,18 @@ pub struct UserInfo {
 
     pub picture_id: Option<String>,
 }
+
+#[derive(Debug, Serialize, ToSchema)]
+pub struct LidPnEntryResponse {
+    /// The LID user part (e.g. "100000012345678", no `@lid` suffix).
+    pub lid: String,
+
+    /// The phone number user part (e.g. "15551234567", no `@s.whatsapp.net` suffix).
+    pub phone_number: String,
+
+    /// Unix timestamp (seconds) when the mapping was first learned.
+    pub created_at: i64,
+
+    /// How the mapping was learned (usync, a peer's message, pairing, etc.).
+    pub learning_source: String,
+}

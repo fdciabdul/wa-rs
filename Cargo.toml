@@ -10,14 +10,14 @@ repository = "https://github.com/imtaqin/waxum"
 [dependencies]
 
 rand = "0.8"
-whatsapp-rust = { git = "https://github.com/oxidezap/whatsapp-rust", rev = "8cea605fa53b5cfb3093a6798d341798184a2928", default-features = true, features = ["voip", "tracing"] }
-wacore = { git = "https://github.com/oxidezap/whatsapp-rust", rev = "8cea605fa53b5cfb3093a6798d341798184a2928" }
-wacore-binary = { git = "https://github.com/oxidezap/whatsapp-rust", rev = "8cea605fa53b5cfb3093a6798d341798184a2928" }
-waproto = { git = "https://github.com/oxidezap/whatsapp-rust", rev = "8cea605fa53b5cfb3093a6798d341798184a2928" }
-whatsapp-rust-sqlite-storage = { git = "https://github.com/oxidezap/whatsapp-rust", rev = "8cea605fa53b5cfb3093a6798d341798184a2928" }
-whatsapp-rust-tokio-transport = { git = "https://github.com/oxidezap/whatsapp-rust", rev = "8cea605fa53b5cfb3093a6798d341798184a2928" }
-whatsapp-rust-ureq-http-client = { git = "https://github.com/oxidezap/whatsapp-rust", rev = "8cea605fa53b5cfb3093a6798d341798184a2928" }
-whatsapp-rust-chat-store = { git = "https://github.com/oxidezap/whatsapp-rust", rev = "8cea605fa53b5cfb3093a6798d341798184a2928" }
+whatsapp-rust = { git = "https://github.com/oxidezap/whatsapp-rust", rev = "1489b7da9a6a7e3cadc4337ee46399da7de25915", default-features = true, features = ["voip", "tracing"] }
+wacore = { git = "https://github.com/oxidezap/whatsapp-rust", rev = "1489b7da9a6a7e3cadc4337ee46399da7de25915" }
+wacore-binary = { git = "https://github.com/oxidezap/whatsapp-rust", rev = "1489b7da9a6a7e3cadc4337ee46399da7de25915" }
+waproto = { git = "https://github.com/oxidezap/whatsapp-rust", rev = "1489b7da9a6a7e3cadc4337ee46399da7de25915" }
+whatsapp-rust-sqlite-storage = { git = "https://github.com/oxidezap/whatsapp-rust", rev = "1489b7da9a6a7e3cadc4337ee46399da7de25915" }
+whatsapp-rust-tokio-transport = { git = "https://github.com/oxidezap/whatsapp-rust", rev = "1489b7da9a6a7e3cadc4337ee46399da7de25915" }
+whatsapp-rust-ureq-http-client = { git = "https://github.com/oxidezap/whatsapp-rust", rev = "1489b7da9a6a7e3cadc4337ee46399da7de25915" }
+whatsapp-rust-chat-store = { git = "https://github.com/oxidezap/whatsapp-rust", rev = "1489b7da9a6a7e3cadc4337ee46399da7de25915" }
 
 # Web framework
 axum = { version = "0.8", features = ["macros", "multipart", "ws"] }
