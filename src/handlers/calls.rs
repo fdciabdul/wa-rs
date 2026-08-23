@@ -597,6 +597,10 @@ pub async fn terminate_call(
     Ok(Json(SuccessResponse::with_message("Call terminated")))
 }
 
+/// The `get_client` call below isn't strictly needed to reach the handle
+/// (`active_calls` is keyed by `call_id` alone), but keeps this endpoint's
+/// auth/connected-session requirements consistent with every other
+/// `/calls/*` mutation.
 #[utoipa::path(
     post,
     security(("bearer_auth" = [])),
@@ -621,9 +625,6 @@ pub async fn set_call_video_orientation(
     if request.call_id.is_empty() {
         return Err(ApiError::BadRequest("call_id is empty".to_string()));
     }
-    // Not strictly needed to reach the handle (active_calls is keyed by
-    // call_id alone), but keeps this endpoint's auth/connected-session
-    // requirements consistent with every other /calls/* mutation.
     let _client = get_client(&state, &session_id)?;
 
     let handle = state

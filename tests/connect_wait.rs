@@ -9,7 +9,8 @@ use tower::ServiceExt;
 /// prior `POST /sessions` needed), streams SSE, and gives up cleanly with a
 /// `timeout` event once `timeout_seconds` elapses without a real WhatsApp
 /// connection to pair against -- exactly what happens in this test harness,
-/// which never touches the real network.
+/// which never touches the real network. The session row exists afterward
+/// even though no client ever connected.
 #[tokio::test]
 async fn connect_wait_creates_session_and_times_out() {
     let h = Harness::new().await;
@@ -35,7 +36,6 @@ async fn connect_wait_creates_session_and_times_out() {
     assert!(content_type.starts_with("text/event-stream"));
     assert!(text.contains("event: timeout"), "body was: {text}");
 
-    // The session row now exists even though no client ever connected.
     let (status, body) = common::call(
         &h.app,
         req_get("/api/v1/sessions/s-wait/status", Some(TEST_TOKEN)),

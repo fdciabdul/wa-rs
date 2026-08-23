@@ -576,10 +576,6 @@ pub async fn connect_and_wait(
                     };
                     let event_name = v.get("event").and_then(|e| e.as_str()).unwrap_or("");
                     match event_name {
-                        // Not collapsed into the match guard (as clippy's
-                        // `collapsible_match` suggests): the guard would move
-                        // `payload` even on a false result, making it
-                        // unavailable to the arms below.
                         #[allow(clippy::collapsible_match)]
                         "qr_code" | "pair_code" => {
                             if tx
