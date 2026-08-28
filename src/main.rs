@@ -521,7 +521,7 @@ impl utoipa::Modify for SecurityAddon {
 }
 
 /// Builds the global per-peer-IP rate limiter (`RATE_LIMIT_PER_SECOND` /
-/// `RATE_LIMIT_BURST` env vars, default 20/50) and spawns the background
+/// `RATE_LIMIT_BURST` env vars, default 60/150) and spawns the background
 /// task that periodically evicts stale entries from its state map --
 /// without that, the map only grows and becomes an unbounded memory leak
 /// in front of a public server.
@@ -543,11 +543,11 @@ fn build_rate_limiter(
     let per_second: u64 = std::env::var("RATE_LIMIT_PER_SECOND")
         .ok()
         .and_then(|v| v.parse().ok())
-        .unwrap_or(20);
+        .unwrap_or(60);
     let burst: u32 = std::env::var("RATE_LIMIT_BURST")
         .ok()
         .and_then(|v| v.parse().ok())
-        .unwrap_or(50);
+        .unwrap_or(150);
     let conf = Arc::new(
         GovernorConfigBuilder::default()
             .key_extractor(PeerIpKeyExtractor)
