@@ -2,6 +2,17 @@
 
 All notable changes to **waxum** will be documented in this file.
 
+## [0.12.4] - 2026-08-28
+
+### Changed
+
+Rate limiter is now opt-in (`RATE_LIMIT_ENABLED=true`, default off).
+`PeerIpKeyExtractor` keys on TCP peer, so behind a reverse proxy every
+client shares one quota — 0.12.3 raised the defaults, but a self-hosted
+single-operator deployment behind Docker Compose/Traefik/Dokploy still
+doesn't need it on by default. `RATE_LIMIT_PER_SECOND`/`RATE_LIMIT_BURST`
+still apply when it's turned on.
+
 ## [0.12.3] - 2026-08-28
 
 ### Fixed
