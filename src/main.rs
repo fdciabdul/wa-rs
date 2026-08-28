@@ -524,20 +524,20 @@ impl utoipa::Modify for SecurityAddon {
 /// `RATE_LIMIT_BURST` env vars, default 60/150) and spawns the background
 /// task that periodically evicts stale entries from its state map --
 /// without that, the map only grows and becomes an unbounded memory leak
-/// in front of a public server.
+/// in front of a public server. Only called when `RATE_LIMIT_ENABLED=true`
+/// (default off, see [`async_main`]): keyed on the TCP peer address
+/// ([`PeerIpKeyExtractor`]), so behind an unconfigured reverse proxy
+/// (Docker Compose, Traefik, Dokploy) every client shares one quota --
+/// #83/#84 hit exactly that, so this stays opt-in rather than a default
+/// every self-hosted deployment has to fight.
 ///
-/// No rate limiting existed anywhere in the stack before this -- a bearer
-/// token holder (or an unauthenticated caller hitting `/login`) could
-/// hammer pairing codes, blast sends, or webhook registration unbounded.
-/// Keyed on the TCP peer address ([`PeerIpKeyExtractor`]) rather than
-/// `X-Forwarded-For`/`X-Real-IP`: those headers are client-controlled
-/// unless a trusted proxy strips and re-sets them, and trusting them
-/// blindly would let a client bypass the limit entirely by sending a fresh
-/// fake IP on every request. The tradeoff is that behind an unconfigured
-/// reverse proxy every client shares one quota (the proxy's peer IP) --
-/// less precise, but not bypassable. Applied as the outermost layer in
-/// [`async_main`] so every request is rate-limited before it costs a JWT
-/// validation or reaches a handler.
+/// Keyed on the TCP peer address rather than `X-Forwarded-For`/
+/// `X-Real-IP`: those headers are client-controlled unless a trusted
+/// proxy strips and re-sets them, and trusting them blindly would let a
+/// client bypass the limit entirely by sending a fresh fake IP on every
+/// request. Applied as the outermost layer in [`async_main`] so every
+/// request is rate-limited before it costs a JWT validation or reaches a
+/// handler.
 fn build_rate_limiter(
 ) -> Arc<GovernorConfig<PeerIpKeyExtractor, governor::middleware::NoOpMiddleware>> {
     let per_second: u64 = std::env::var("RATE_LIMIT_PER_SECOND")
@@ -899,7 +899,10 @@ async fn async_main(worker_threads: usize, blocking_threads: usize) -> Result<()
     }
 
     let cors = build_cors_layer();
-    let governor_conf = build_rate_limiter();
+    let rate_limit_enabled = std::env::var("RATE_LIMIT_ENABLED")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(false);
 
     let (superadmin_token, from_env) = middleware::jwt::get_superadmin_token();
     println!();
@@ -922,7 +925,7 @@ async fn async_main(worker_threads: usize, blocking_threads: usize) -> Result<()
         .url("/api-docs/openapi.json", ApiDoc::openapi())
         .into();
 
-    let app = create_router()
+    let mut app = create_router()
         .merge(swagger_router)
         .merge(console::console_router())
         .layer(axum::middleware::from_fn_with_state(
@@ -930,9 +933,13 @@ async fn async_main(worker_threads: usize, blocking_threads: usize) -> Result<()
             middleware::jwt::jwt_auth_middleware,
         ))
         .layer(TraceLayer::new_for_http())
-        .layer(cors)
-        .layer(GovernorLayer::new(governor_conf))
-        .with_state(state);
+        .layer(cors);
+
+    if rate_limit_enabled {
+        app = app.layer(GovernorLayer::new(build_rate_limiter()));
+    }
+
+    let app = app.with_state(state);
 
     let port: u16 = std::env::var("PORT")
         .unwrap_or_else(|_| "3451".to_string())
