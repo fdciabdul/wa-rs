@@ -2,6 +2,17 @@
 
 All notable changes to **waxum** will be documented in this file.
 
+## [0.12.3] - 2026-08-28
+
+### Fixed
+
+Default per-IP rate limit raised 20 req/s burst 50 -> 60 req/s burst
+150 (#83, #84). `PeerIpKeyExtractor` keys on TCP peer, so behind a
+reverse proxy (Docker Compose / Traefik / Dokploy) every client shares
+one quota — the old defaults exhausted within a single dashboard page
+load plus a few clicks. Still overridable via `RATE_LIMIT_PER_SECOND`/
+`RATE_LIMIT_BURST`, now documented in `.env.example`.
+
 ## [0.12.2] - 2026-08-23
 
 ### Changed — vendored whatsapp-rust bumped to `1489b7d` (upstream `0.7.0`)
