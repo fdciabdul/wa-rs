@@ -96,6 +96,11 @@ pub fn req_json(method: Method, path: &str, token: Option<&str>, body: Value) ->
     b.body(Body::from(body.to_string())).expect("build request")
 }
 
+/// Carries `allow(dead_code)` for the same reason as `req_json` and
+/// `req_delete`: `common` is compiled once per integration-test binary, so a
+/// module that only exercises one HTTP method leaves the other constructors
+/// unused and would otherwise fail `clippy -D warnings`.
+#[allow(dead_code)]
 pub fn req_get(path: &str, token: Option<&str>) -> Request<Body> {
     let mut b = Request::builder().method(Method::GET).uri(path);
     if let Some(t) = token {
