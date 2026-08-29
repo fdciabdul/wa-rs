@@ -38,12 +38,45 @@ git clone https://github.com/imtaqin/waxum.git
 cd waxum
 ```
 
-The crate targets Rust **nightly** because the upstream `whatsapp-rust`
-client relies on the `portable_simd` feature. Install with:
+## Toolchain
 
-```sh
-rustup default nightly
-```
+The crate builds on a **pinned Rust nightly — `nightly-2026-04-05`**.
+
+You do not need to install or select it by hand. The pin lives in
+`rust-toolchain.toml`; `rustup` reads that file and installs the matching
+toolchain on your first `cargo` invocation in this directory. Do not run
+`rustup default nightly` — that sets a floating latest-nightly globally,
+which is not what this project builds against and will drift.
+
+The pin exists because upstream `whatsapp-rust` used `portable_simd`, an
+unstable feature. That is no longer true at the revision we pin — upstream
+removed SIMD and declares a stable MSRV, and waxum uses no unstable
+features of its own — so the pin is likely removable, but has not been
+verified against stable. Do not quietly change it; see
+[docs/DEPENDENCIES.md](docs/DEPENDENCIES.md) and
+[#87](https://github.com/imtaqin/waxum/issues/87).
+
+## Upstream dependency policy
+
+waxum pins **eight** `whatsapp-rust` crates — `whatsapp-rust`, `wacore`,
+`wacore-binary`, `waproto`, `whatsapp-rust-sqlite-storage`,
+`whatsapp-rust-tokio-transport`, `whatsapp-rust-ureq-http-client`, and
+`whatsapp-rust-chat-store` — to a **single git revision**, not to
+crates.io versions.
+
+Rules, if you touch these:
+
+- **All eight move together, to the same revision.** They share types
+  across their public APIs; a mixed set does not compile.
+- **Do not switch any of them to a crates.io version.** Seven are
+  published, one (`whatsapp-rust-chat-store`) is not, and the set has to
+  resolve from one source.
+- **The revision is reviewed once per release**, as a checklist item in
+  the release process below — not continuously, and not on a cron.
+
+The full reasoning, the risks this carries, and what it means for anyone
+depending on waxum are in **[docs/DEPENDENCIES.md](docs/DEPENDENCIES.md)**.
+Read it before proposing a dependency change.
 
 ## Building & running
 
@@ -125,13 +158,21 @@ are really just an OOM. Cap it if you hit that: `cargo build -j 4` /
 
 The release flow is manual:
 
-1. Bump the `version` field in `Cargo.toml`.
-2. Add a `## [x.y.z]` section to `CHANGELOG.md` with what changed.
-3. `git commit -am "release x.y.z <short summary>"`.
-4. `git push origin main` — the `release.yml` workflow tags the commit,
+1. **Review the upstream `whatsapp-rust` revision.** Compare the pin in
+   `Cargo.toml` against upstream `main` and read the intervening changes
+   for protocol or API breaks. Bumping is optional; *looking* is not.
+   If you bump, move all eight crates to the same revision and smoke-test
+   a real pair + send — protocol regressions do not show up in
+   `cargo test`. Record the outcome either way in `CHANGELOG.md`, so the
+   next release knows the decision was made rather than skipped. See
+   [docs/DEPENDENCIES.md](docs/DEPENDENCIES.md#bump-cadence).
+2. Bump the `version` field in `Cargo.toml`.
+3. Add a `## [x.y.z]` section to `CHANGELOG.md` with what changed.
+4. `git commit -am "release x.y.z <short summary>"`.
+5. `git push origin main` — the `release.yml` workflow tags the commit,
    builds multi-arch binaries + Docker image, and publishes the
    GitHub release.
-5. On the production server: `docker pull fdciabdul/waxum:latest`, then
+6. On the production server: `docker pull fdciabdul/waxum:latest`, then
    `docker cp` the binary out of a temporary container and
    `pm2 restart waxum` (see the internal deploy runbook).
 
