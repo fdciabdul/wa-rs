@@ -184,6 +184,32 @@ cargo build --release
 ./target/release/waxum
 ```
 
+### Toolchain
+
+**waxum builds on a pinned Rust nightly — `nightly-2026-04-05`.** You do
+not have to select it: the pin lives in `rust-toolchain.toml`, and
+`rustup` reads that file and installs the right toolchain on your first
+`cargo build`. If you have `rustup`, there is nothing to do.
+
+The pin is historical. Upstream `whatsapp-rust` used the unstable
+`portable_simd` feature, which is nightly-only; at the revision waxum
+currently pins, upstream has removed SIMD from its tree and declares a
+stable MSRV, and waxum itself uses no unstable features. The pin has not
+been re-validated against stable, so it stays until someone does that
+end to end. Tracked in
+[#87](https://github.com/imtaqin/waxum/issues/87).
+
+### Dependencies
+
+The WhatsApp protocol layer is not ours. It is
+[`whatsapp-rust`](https://github.com/oxidezap/whatsapp-rust), a
+third-party project, and waxum pins eight of its crates to a single git
+revision rather than to crates.io versions. That is a deliberate choice
+with real consequences for anyone depending on waxum — including that
+waxum cannot itself be published to crates.io. The reasoning, the risk,
+and the bump cadence are written down in
+**[docs/DEPENDENCIES.md](docs/DEPENDENCIES.md)**.
+
 ## Endpoints
 
 | URL | Purpose |
