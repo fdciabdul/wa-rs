@@ -9,7 +9,7 @@
 
 use axum::{
     body::{to_bytes, Body},
-    http::{Method, Request, StatusCode},
+    http::{HeaderMap, Method, Request, StatusCode},
     Router,
 };
 use serde_json::Value;
@@ -82,6 +82,24 @@ pub async fn call(app: &Router, req: Request<Body>) -> (StatusCode, Value) {
             .unwrap_or_else(|_| Value::String(String::from_utf8_lossy(&body_bytes).to_string()))
     };
     (status, json)
+}
+
+/// Variant of [`call`] for routes whose body is not JSON.
+///
+/// [`call`] parses the body as JSON and falls back to wrapping the raw bytes
+/// in a `Value::String`, which is lossy for binary payloads and hides the
+/// response headers entirely. `GET /calls/{call_id}/recording.wav` serves
+/// `audio/wav` and sets `content-disposition`, so it needs both the untouched
+/// bytes and the headers to be assertable.
+#[allow(dead_code)]
+pub async fn call_bytes(app: &Router, req: Request<Body>) -> (StatusCode, HeaderMap, Vec<u8>) {
+    let res = app.clone().oneshot(req).await.expect("router response");
+    let status = res.status();
+    let headers = res.headers().clone();
+    let body_bytes = to_bytes(res.into_body(), 8 * 1024 * 1024)
+        .await
+        .expect("body bytes");
+    (status, headers, body_bytes.to_vec())
 }
 
 #[allow(dead_code)]
