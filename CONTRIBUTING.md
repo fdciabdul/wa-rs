@@ -4,6 +4,33 @@ Thanks for your interest in improving waxum. This document covers the
 development workflow, quality gates every push must pass, and the
 conventions the project follows.
 
+## Where to start
+
+If you're looking for a first contribution, start here:
+
+**[Open `good first issue` tickets](https://github.com/imtaqin/waxum/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22)**
+
+Most of what's there right now is handler test coverage. Roughly half of
+waxum's HTTP surface has no integration test, and each untested handler
+module is a self-contained, low-context piece of work that mirrors a test
+file already in the repo. Each issue names the handler file, lists the
+exact routes to cover, and says which existing test file to mirror, so
+you shouldn't need to go spelunking to get started.
+
+[`tests/presence.rs`](tests/presence.rs) is the worked example — read its
+header first. It spells out the four assertions that apply to every
+session-scoped handler, and where the boundary sits: assert the HTTP
+contract, not the protocol behaviour. Anything past the `get_client` gate
+needs a live WhatsApp client and is out of scope. For a module with more
+than a few routes, mirror the table-sweep shape in
+[`tests/groups_management.rs`](tests/groups_management.rs),
+[`tests/newsletter.rs`](tests/newsletter.rs), or
+[`tests/labels.rs`](tests/labels.rs) instead.
+
+Finding a real defect while writing a test is a good outcome — file it
+separately rather than fixing it in the test PR. That has already
+happened once here (#90 surfaced the bug fixed by #93).
+
 ## Getting the code
 
 ```sh
