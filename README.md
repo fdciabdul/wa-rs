@@ -18,7 +18,7 @@
 
 Native single-binary. Multi-session. Multi-DB. Webhooks + HMAC. JWT + Bearer. Swagger. Prometheus. NATS JetStream (optional).
 
-Production-grade. **130+ REST endpoints across 22 feature modules.**
+Production-grade. **180+ REST endpoints across 29 feature modules.**
 
 ## Features
 
