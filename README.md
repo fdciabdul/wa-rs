@@ -191,6 +191,30 @@ not have to select it: the pin lives in `rust-toolchain.toml`, and
 `rustup` reads that file and installs the right toolchain on your first
 `cargo build`. If you have `rustup`, there is nothing to do.
 
+To install it up front, or to check what you are actually building with:
+
+```sh
+rustup toolchain install nightly-2026-04-05 --component rustfmt --component clippy
+rustup show active-toolchain   # from the repo root; expect nightly-2026-04-05-<host>
+```
+
+Do not run `rustup default nightly`. That selects a floating latest
+nightly globally, which is not what this project builds against.
+
+**Without `rustup`, the pin does not apply.** `rust-toolchain.toml` is a
+`rustup` feature; a distro-packaged, Homebrew, or Nix `cargo` ignores it
+silently — no warning, no error, just a different compiler than the one
+we test. If a build fails in a way this section does not explain, check
+`cargo --version` before anything else.
+
+If you force stable — `cargo +stable build` — we cannot tell you what
+happens, because nobody has run it. Historically it failed inside
+upstream `whatsapp-rust` with [`error[E0554]: #![feature] may not be used
+on the stable release channel`](https://doc.rust-lang.org/error_codes/E0554.html),
+which is the error this pin was introduced to prevent. That cause is gone
+at the revision we now pin, so a stable build may well succeed — it is
+simply unverified, and therefore unsupported.
+
 The pin is historical. Upstream `whatsapp-rust` used the unstable
 `portable_simd` feature, which is nightly-only; at the revision waxum
 currently pins, upstream has removed SIMD from its tree and declares a

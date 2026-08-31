@@ -87,6 +87,20 @@ is not "verified", and nobody has run a stable build end to end. Until
 someone does, the pin stays and this is the honest description of it.
 Tracked in [#87](https://github.com/imtaqin/waxum/issues/87).
 
+Removing the pin is not a one-line change to `rust-toolchain.toml`. It
+needs a stable build of the full dependency graph — the eight upstream
+crates included, since they are what forced nightly in the first place —
+plus the quality gates and a live pairing smoke test, on the pinned
+revision. Until that has been done once, treat `cargo +stable build` as
+unsupported rather than broken; the distinction is that we have no
+evidence either way. `error[E0554]` from an upstream crate is the
+historical failure signature to look for.
+
+Note also that the pin and the upstream revision are coupled. Bumping the
+revision (below) can reintroduce an unstable feature upstream and make
+nightly load-bearing again, which is one more reason the bump is a
+deliberate per-release decision rather than a background upgrade.
+
 ## Bump cadence
 
 **The upstream revision is reviewed once per release.** Not on a cron, not
