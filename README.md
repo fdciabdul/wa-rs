@@ -248,6 +248,18 @@ and the bump cadence are written down in
 
 Rust nightly · Axum 0.8 · Tokio · [whatsapp-rust](https://github.com/oxidezap/whatsapp-rust) · Postgres/MySQL/SQLite · NATS JetStream · Prometheus · Utoipa.
 
+## Ecosystem
+
+| Repo | What it is |
+|---|---|
+| [waxum-studio](https://github.com/imtaqin/waxum-studio) | Visual WhatsApp workflow builder — nodes, integrations, drag-and-drop automation, powered by waxum. |
+| [waxum-mcp](https://github.com/imtaqin/waxum-mcp) | MCP server for WhatsApp, backed by waxum — send/read/media tools for any MCP client (Claude Desktop, Claude Code, etc). |
+| [waxum-sdk](https://github.com/imtaqin/waxum-sdk) | TypeScript SDK, types generated from waxum's OpenAPI spec. |
+| [waxum-php-client](https://github.com/imtaqin/waxum-php-client) | PHP client for the waxum REST API. |
+| [waxum-doc](https://github.com/imtaqin/waxum-doc) | Docs site — [waxum.imtaqin.id](https://waxum.imtaqin.id). |
+| [waxum-hermes-plugin](https://github.com/imtaqin/waxum-hermes-plugin) | [Hermes Agent](https://github.com/NousResearch/hermes-agent) gateway platform plugin — real WhatsApp buttons/lists/CTA-url, which Hermes's built-in Baileys bridge can't do. |
+| [waxum-openclaw-plugin](https://github.com/imtaqin/waxum-openclaw-plugin) | [OpenClaw](https://github.com/openclaw/openclaw) channel plugin — same interactive WhatsApp messaging, wired into OpenClaw's gateway. |
+
 ## Docs
 
 Everything else — endpoints, webhooks, health probes, deployment,
