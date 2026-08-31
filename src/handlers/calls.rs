@@ -180,7 +180,7 @@ async fn place_encoded_audio_call(
             "opus stream complete, hanging up"
         );
         tokio::time::sleep(std::time::Duration::from_millis(500)).await;
-        handle_arc.hangup().await;
+        handle_arc.terminate().await;
         state_bg.active_calls().remove(&call_id_bg);
     });
 
@@ -542,7 +542,7 @@ pub async fn accept_call(
                 tokio::time::sleep(std::time::Duration::from_millis(60)).await;
             }
             tokio::time::sleep(std::time::Duration::from_millis(500)).await;
-            handle_arc.hangup().await;
+            handle_arc.terminate().await;
             state_bg.active_calls().remove(&call_id_bg);
             state_bg.call_audio_channels().remove(&call_id_bg);
         });
@@ -578,7 +578,7 @@ pub async fn terminate_call(
     let client = get_client(&state, &session_id)?;
 
     if let Some((_, handle)) = state.active_calls().remove(&request.call_id) {
-        handle.hangup().await;
+        handle.terminate().await;
         state.call_audio_channels().remove(&request.call_id);
         return Ok(Json(SuccessResponse::with_message("Call terminated")));
     }
@@ -1262,7 +1262,7 @@ async fn drive_media_socket(
     }
 
     peer_task.abort();
-    handle_arc.hangup().await;
+    handle_arc.terminate().await;
     state.active_calls().remove(&call_id);
     state.call_audio_channels().remove(&call_id);
     Ok(())

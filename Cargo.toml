@@ -1,6 +1,6 @@
 [package]
 name = "waxum"
-version = "0.12.4"
+version = "0.12.5"
 edition = "2021"
 authors = ["taqin"]
 license = "MIT"
@@ -10,14 +10,17 @@ repository = "https://github.com/imtaqin/waxum"
 [dependencies]
 
 rand = "0.8"
-whatsapp-rust = { git = "https://github.com/oxidezap/whatsapp-rust", rev = "1489b7da9a6a7e3cadc4337ee46399da7de25915", default-features = true, features = ["voip", "tracing"] }
-wacore = { git = "https://github.com/oxidezap/whatsapp-rust", rev = "1489b7da9a6a7e3cadc4337ee46399da7de25915" }
-wacore-binary = { git = "https://github.com/oxidezap/whatsapp-rust", rev = "1489b7da9a6a7e3cadc4337ee46399da7de25915" }
-waproto = { git = "https://github.com/oxidezap/whatsapp-rust", rev = "1489b7da9a6a7e3cadc4337ee46399da7de25915" }
-whatsapp-rust-sqlite-storage = { git = "https://github.com/oxidezap/whatsapp-rust", rev = "1489b7da9a6a7e3cadc4337ee46399da7de25915" }
-whatsapp-rust-tokio-transport = { git = "https://github.com/oxidezap/whatsapp-rust", rev = "1489b7da9a6a7e3cadc4337ee46399da7de25915" }
-whatsapp-rust-ureq-http-client = { git = "https://github.com/oxidezap/whatsapp-rust", rev = "1489b7da9a6a7e3cadc4337ee46399da7de25915" }
-whatsapp-rust-chat-store = { git = "https://github.com/oxidezap/whatsapp-rust", rev = "1489b7da9a6a7e3cadc4337ee46399da7de25915" }
+whatsapp-rust = { git = "https://github.com/oxidezap/whatsapp-rust", rev = "4c39db90cd2dc6f7b6c4ec8340c0ce173401b43c", default-features = true, features = ["voip", "tracing"] }
+wacore = { git = "https://github.com/oxidezap/whatsapp-rust", rev = "4c39db90cd2dc6f7b6c4ec8340c0ce173401b43c" }
+wacore-binary = { git = "https://github.com/oxidezap/whatsapp-rust", rev = "4c39db90cd2dc6f7b6c4ec8340c0ce173401b43c" }
+waproto = { git = "https://github.com/oxidezap/whatsapp-rust", rev = "4c39db90cd2dc6f7b6c4ec8340c0ce173401b43c" }
+whatsapp-rust-sqlite-storage = { git = "https://github.com/oxidezap/whatsapp-rust", rev = "4c39db90cd2dc6f7b6c4ec8340c0ce173401b43c" }
+whatsapp-rust-tokio-transport = { git = "https://github.com/oxidezap/whatsapp-rust", rev = "4c39db90cd2dc6f7b6c4ec8340c0ce173401b43c" }
+whatsapp-rust-ureq-http-client = { git = "https://github.com/oxidezap/whatsapp-rust", rev = "4c39db90cd2dc6f7b6c4ec8340c0ce173401b43c" }
+# Chat store was extracted from the whatsapp-rust monorepo (#1346) without a
+# published replacement yet — vendored here from the last monorepo rev that
+# carried it, with its wacore deps re-pointed at the same rev as the rest.
+whatsapp-rust-chat-store = { path = "vendor/whatsapp-rust-chat-store" }
 
 # Web framework
 axum = { version = "0.8", features = ["macros", "multipart", "ws"] }
@@ -42,7 +45,7 @@ mysql_async = { version = "0.35", default-features = false, features = ["default
 # SQLite — used as the zero-config fallback when DATABASE_URL is unset so
 # `cargo run` "just works" against a local file (./waxum.db) without needing
 # Postgres or MySQL running.
-libsqlite3-sys = { version = "0.37", features = [] }
+libsqlite3-sys = { version = "0.38", features = [] }
 
 # Environment
 dotenvy = "0.15"
