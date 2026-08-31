@@ -48,6 +48,43 @@ toolchain on your first `cargo` invocation in this directory. Do not run
 `rustup default nightly` — that sets a floating latest-nightly globally,
 which is not what this project builds against and will drift.
 
+If you would rather install it explicitly, or want to confirm which
+compiler you are on:
+
+```sh
+rustup toolchain install nightly-2026-04-05 --component rustfmt --component clippy
+rustup show active-toolchain   # from the repo root; expect nightly-2026-04-05-<host>
+```
+
+The components matter: `cargo fmt --check` and `cargo clippy` are both
+quality gates below, and neither exists on a toolchain installed without
+them.
+
+### If you are not using rustup
+
+`rust-toolchain.toml` is a `rustup` feature. A distro-packaged, Homebrew,
+or Nix `cargo` does not read it — it builds with whatever toolchain it
+is, silently, with no warning that the pin was ignored. This is the
+failure mode most likely to waste your afternoon, because it does not
+look like a toolchain problem. Check `cargo --version` first.
+
+### If you build on stable anyway
+
+We do not know what happens, and we would rather say so than guess: no
+one has run a stable build of waxum end to end. What we can tell you is
+the error the pin was introduced to prevent, which came from upstream,
+not from waxum:
+
+```
+error[E0554]: `#![feature]` may not be used on the stable release channel
+```
+
+That cause no longer exists at the revision we pin, so `cargo +stable
+build` may well succeed today. Unverified is not the same as supported —
+if you try it, please report what you get on
+[#87](https://github.com/imtaqin/waxum/issues/87); that is exactly the
+evidence the issue is waiting for.
+
 The pin exists because upstream `whatsapp-rust` used `portable_simd`, an
 unstable feature. That is no longer true at the revision we pin — upstream
 removed SIMD and declares a stable MSRV, and waxum uses no unstable
