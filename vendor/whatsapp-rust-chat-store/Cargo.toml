@@ -1,0 +1,37 @@
+[package]
+name = "whatsapp-rust-chat-store"
+version = "0.1.0"
+edition = "2024"
+authors = ["João Lucas <jlucaso@hotmail.com>"]
+license = "MIT"
+repository = "https://github.com/jlucaso1/whatsapp-rust"
+description = "SQLite-backed chat/message history store for whatsapp-rust"
+
+[features]
+default = []
+search = []
+
+[dependencies]
+buffa = { version = "0.9.1", default-features = false, features = ["json"] }
+chrono = { version = "0.4", default-features = false, features = ["now"] }
+diesel = { version = "2.3.11", default-features = false, features = ["sqlite", "r2d2", "32-column-tables"] }
+diesel_migrations = { version = "2.3.2", default-features = false, features = ["sqlite"] }
+log = "0.4"
+serde_json = { version = "1.0", default-features = false, features = ["std"] }
+thiserror = "2.0.19"
+tokio = { version = "1.53.1", default-features = false, features = ["sync", "rt", "macros"] }
+wacore = { git = "https://github.com/oxidezap/whatsapp-rust", rev = "4c39db90cd2dc6f7b6c4ec8340c0ce173401b43c", default-features = false }
+wacore-binary = { git = "https://github.com/oxidezap/whatsapp-rust", rev = "4c39db90cd2dc6f7b6c4ec8340c0ce173401b43c", default-features = false }
+waproto = { git = "https://github.com/oxidezap/whatsapp-rust", rev = "4c39db90cd2dc6f7b6c4ec8340c0ce173401b43c" }
+whatsapp-rust-sqlite-storage = { git = "https://github.com/oxidezap/whatsapp-rust", rev = "4c39db90cd2dc6f7b6c4ec8340c0ce173401b43c" }
+
+[dev-dependencies]
+flate2 = { version = "1.1.9", default-features = false, features = ["zlib-rs"] }
+portable-atomic = { version = "1", default-features = false, features = ["fallback"] }
+tokio = { version = "1.53.1", default-features = false, features = [
+    "sync",
+    "rt",
+    "rt-multi-thread",
+    "time",
+    "macros",
+] }
