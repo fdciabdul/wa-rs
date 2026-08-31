@@ -36,6 +36,7 @@ happened once here (#90 surfaced the bug fixed by #93).
 ```sh
 git clone https://github.com/imtaqin/waxum.git
 cd waxum
+git config core.hooksPath .githooks   # activate the repo's commit-msg and other hooks
 ```
 
 ## Toolchain
